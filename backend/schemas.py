@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, field_validator
-from typing import List
+from pydantic import BaseModel, Field, field_validator, ConfigDict
+from typing import List, Optional
 from enum import Enum
 import re
 
@@ -9,7 +9,7 @@ class CourierType(str, Enum):
     CAR = "car"
 
 class CourierItem(BaseModel):
-    courier_id: int = Field(..., gt=0)
+    courier_id: int = Field(..., gt=0) # Поправили пробел
     courier_type: CourierType
     regions: List[int]
     working_hours: List[str]
@@ -26,9 +26,8 @@ class CourierItem(BaseModel):
 class OrderItem(BaseModel):
     order_id: int = Field(..., gt=0)
     weight: float = Field(..., gt=0)
-    regions: int = Field(..., gt=0)
+    region: int = Field(..., gt=0)
     delivery_hours: List[str]
-    cost: int = Field(..., gt=0)
 
     @field_validator('delivery_hours')
     @classmethod
@@ -39,27 +38,56 @@ class OrderItem(BaseModel):
                 raise ValueError("Format must be HH:MM-HH:MM")
         return hours
 
-class OrdersPostRequest(BaseModel):
-    orders: List[OrderItem]
 
 class CouriersPostRequest(BaseModel):
-    couriers: List[CourierItem]
+    data: List[CourierItem]
 
-class CourierResponse(BaseModel):
+class OrdersPostRequest(BaseModel):
+    data: List[OrderItem]
+
+
+class CourierIdItem(BaseModel):
+    id: int
+
+class CouriersIdsResponse(BaseModel):
+    couriers: List[CourierIdItem]
+
+class OrderIdItem(BaseModel):
+    id: int
+
+class OrdersIdsResponse(BaseModel):
+    orders: List[OrderIdItem]
+
+
+class CourierGetResponse(BaseModel):
     courier_id: int
     courier_type: CourierType
     regions: List[int]
     working_hours: List[str]
+    rating: Optional[float] = None
+    earnings: Optional[int] = 0
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
-class OrderResponse(BaseModel):
+
+class CourierUpdateRequest(BaseModel):
+    courier_type: Optional[CourierType] = None
+    regions: Optional[List[int]] = None
+    working_hours: Optional[List[str]] = None
+
+
+class OrdersAssignPostRequest(BaseModel):
+    courier_id: int
+
+class OrdersAssignResponse(BaseModel):
+    orders: List[CourierIdItem]
+    assign_time: str
+
+
+class OrdersCompletePostRequest(BaseModel):
+    courier_id: int
     order_id: int
-    weight: float
-    regions: int
-    delivery_hours: List[str]
-    cost: int
+    complete_time: str
 
-    class Config:
-        from_attributes = True
+class OrdersCompletePostResponse(BaseModel):
+    order_id: int
