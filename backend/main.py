@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, status, HTTPException
 from sqlalchemy.orm import Session
+from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 
 from schemas import (
@@ -15,6 +16,13 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Candy Delivery App")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def read_root():
