@@ -5,155 +5,177 @@ import './App.css';
 const API_URL = 'http://localhost:8000';
 
 function App() {
-  const [courierId, setCourierId] = useState('');
-  const [courierType, setCourierType] = useState('foot');
-  const [courierRegions, setCourierRegions] = useState('');
-  const [courierHours, setCourierHours] = useState('');
+  const [role, setRole] = useState(null);
+  const [user, setUser] = useState(null);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
 
-  const [orderId, setOrderId] = useState('');
-  const [orderWeight, setOrderWeight] = useState('');
-  const [orderRegion, setOrderRegion] = useState('');
-  const [orderHours, setOrderHours] = useState('');
+  const [allCouriers, setAllCouriers] = useState([]);
+  const [allOrders, setAllOrders] = useState([]);
 
-  const [assignCourierId, setAssignCourierId] = useState('');
-  const [assignOrderId, setAssignOrderId] = useState('');
+  // Состояния форм
+  const [regData, setRegData] = useState({ username: '', password: '', type: 'foot', regions: '', hours: '' });
+  const [orderData, setOrderData] = useState({ id: '', weight: '', region: '', hours: '' });
+  const [selectedCourierId, setSelectedCourierId] = useState('');
+  const [selectedOrderId, setSelectedOrderId] = useState('');
 
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
-  const handleCourierSubmit = async (e) => {
-    e.preventDefault();
-    setMessage(''); setError('');
-    const regionsArray = courierRegions.split(',').map(r => parseInt(r.trim())).filter(r => !isNaN(r));
-    const hoursArray = courierHours.split(',').map(h => h.trim()).filter(h => h !== '');
+  const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)-([01]\d|2[0-3]):([0-5]\d)$/;
 
-    const payload = {
-      data: [{ courier_id: parseInt(courierId), courier_type: courierType, regions: regionsArray, working_hours: hoursArray }]
-    };
+  const formatError = (err) => err.response?.data?.detail || err.message;
 
+  const fetchData = async () => {
     try {
-      await axios.post(`${API_URL}/couriers`, payload);
-      setMessage(`Курьер ID ${courierId} успешно добавлен`);
-      setCourierId(''); setCourierRegions(''); setCourierHours('');
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Ошибка при добавлении курьера');
-    }
+      const [cRes, oRes] = await Promise.all([
+        axios.get(`${API_URL}/users/all`),
+        axios.get(`${API_URL}/orders/all`)
+      ]);
+      setAllCouriers(cRes.data);
+      setAllOrders(oRes.data);
+    } catch (err) { setError('Ошибка загрузки: ' + formatError(err)); }
   };
 
-  const handleOrderSubmit = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    setMessage(''); setError('');
-    const hoursArray = orderHours.split(',').map(h => h.trim()).filter(h => h !== '');
-
-    const payload = {
-      data: [{ order_id: parseInt(orderId), weight: parseFloat(orderWeight), region: parseInt(orderRegion), delivery_hours: hoursArray }]
-    };
-
     try {
-      await axios.post(`${API_URL}/orders`, payload);
-      setMessage(`Заказ ID ${orderId} успешно добавлен`);
-      setOrderId(''); setOrderWeight(''); setOrderRegion(''); setOrderHours('');
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Ошибка при добавлении заказа');
-    }
+      const res = await axios.post(`${API_URL}/auth/login?role=${role}`, { username, password });
+      setUser(res.data);
+      fetchData();
+    } catch (err) { setError(formatError(err)); }
   };
 
-  const handleAssignOrders = async (e) => {
-    e.preventDefault();
-    setMessage(''); setError('');
-    if (!assignCourierId || !assignOrderId) return setError('Необходимо заполнить оба поля');
-
+  const handleRegisterCourier = async () => {
+    if (!timeRegex.test(regData.hours)) {
+      setError("Ошибка времени: формат должен быть HH:MM-HH:MM");
+      return;
+    }
     try {
-      const res = await axios.post(`${API_URL}/orders/assign`, {
-        courier_id: parseInt(assignCourierId)
+      await axios.post(`${API_URL}/couriers`, {
+        username: regData.username,
+        password: regData.password,
+        courier_type: regData.type,
+        regions: regData.regions.split(',').map(Number),
+        working_hours: [regData.hours]
       });
-
-      const assignedOrdersCount = res.data.orders ? res.data.orders.length : 0;
-
-      if (assignedOrdersCount > 0) {
-        setMessage(`Успешно. Количество назначенных заказов для курьера ID ${assignCourierId}: ${assignedOrdersCount}`);
-      } else {
-        setError(`Система вернула 0 назначенных заказов для курьера ID ${assignCourierId}. Проверьте соответствие параметров для заказа ID ${assignOrderId}`);
-      }
-
-      setAssignCourierId(''); setAssignOrderId('');
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Ошибка при распределении заказов');
-    }
+      setMessage('Курьер зарегистрирован!');
+      setError('');
+      fetchData();
+    } catch (err) { setError('Ошибка регистрации: ' + formatError(err)); }
   };
+
+  const handleCreateOrder = async () => {
+    if (!timeRegex.test(orderData.hours)) {
+      setError("Ошибка времени: формат должен быть HH:MM-HH:MM");
+      return;
+    }
+    try {
+      await axios.post(`${API_URL}/orders`, {
+        data: [{
+          order_id: parseInt(orderData.id),
+          weight: parseFloat(orderData.weight),
+          region: parseInt(orderData.region),
+          delivery_hours: [orderData.hours]
+        }]
+      });
+      setMessage('Заказ создан!');
+      setError('');
+      fetchData();
+    } catch (err) { setError('Ошибка: ' + formatError(err)); }
+  };
+
+  const handleAssignSingle = async () => {
+    try {
+      await axios.post(`${API_URL}/orders/assign/single`, {
+        courier_id: parseInt(selectedCourierId),
+        order_id: parseInt(selectedOrderId)
+      });
+      setMessage(`Заказ #${selectedOrderId} назначен курьеру ${selectedCourierId}`);
+      fetchData();
+    } catch (err) { setError('Ошибка: ' + formatError(err)); }
+  };
+
+  if (!role) return (
+    <div className="container">
+      <h1>Candy Delivery</h1>
+      <button onClick={() => setRole('admin')}>Администратор</button>
+      <button onClick={() => setRole('courier')}>Курьер</button>
+    </div>
+  );
+
+  if (!user) return (
+    <div className="container">
+      <h2>Вход ({role})</h2>
+      <form onSubmit={handleLogin}>
+        <input placeholder="Логин" onChange={e => setUsername(e.target.value)} />
+        <input type="password" placeholder="Пароль" onChange={e => setPassword(e.target.value)} />
+        <button type="submit">Войти</button>
+        <button onClick={() => setRole(null)}>Назад</button>
+      </form>
+      {error && <div className="alert danger">{error}</div>}
+    </div>
+  );
 
   return (
     <div className="container">
-      <h1> Candy Delivery — Панель управления менеджера</h1>
+      <h1>Привет, {user.username}</h1>
+      <button onClick={() => {setUser(null); setRole(null);}}>Выйти</button>
 
       {message && <div className="alert success">{message}</div>}
       {error && <div className="alert danger">{error}</div>}
 
-      <div className="grid">
-        <div className="card">
-          <h2>Регистрация курьера</h2>
-          <form onSubmit={handleCourierSubmit} className="vertical-form">
-            <label>ID Курьера:</label>
-            <input type="number" required value={courierId} onChange={(e) => setCourierId(e.target.value)} />
+      {role === 'admin' ? (
+        <div className="admin-panel">
+          <div className="grid">
+            <div className="card">
+              <h3>Регистрация курьера</h3>
+              <input placeholder="Логин" onChange={e => setRegData({...regData, username: e.target.value})} />
+              <input placeholder="Пароль" onChange={e => setRegData({...regData, password: e.target.value})} />
+              <select onChange={e => setRegData({...regData, type: e.target.value})}>
+                <option value="foot">Пешком</option><option value="bike">Вело</option><option value="car">Авто</option>
+              </select>
+              <input placeholder="Регионы (1,2)" onChange={e => setRegData({...regData, regions: e.target.value})} />
+              <input placeholder="Время (09:00-18:00)" onChange={e => setRegData({...regData, hours: e.target.value})} />
+              <button onClick={handleRegisterCourier}>Зарегистрировать</button>
+            </div>
 
-            <label>Тип курьера:</label>
-            <select value={courierType} onChange={(e) => setCourierType(e.target.value)}>
-              <option value="foot">Пешком (foot)</option>
-              <option value="bike">Велосипед (bike)</option>
-              <option value="car">Автомобиль (car)</option>
+            <div className="card">
+              <h3>Создать заказ</h3>
+              <input placeholder="ID Заказа" onChange={e => setOrderData({...orderData, id: e.target.value})} />
+              <input placeholder="Вес" onChange={e => setOrderData({...orderData, weight: e.target.value})} />
+              <input placeholder="Регион" onChange={e => setOrderData({...orderData, region: e.target.value})} />
+              <input placeholder="Время (10:00-12:00)" onChange={e => setOrderData({...orderData, hours: e.target.value})} />
+              <button onClick={handleCreateOrder}>Создать заказ</button>
+            </div>
+          </div>
+
+          <div className="card">
+            <h3>Назначить заказ</h3>
+            <select onChange={e => setSelectedCourierId(e.target.value)}>
+              <option value="">Выберите курьера</option>
+              {allCouriers.map(c => <option key={c.id} value={c.id}>{c.username}</option>)}
             </select>
-
-            <label>Регионы:</label>
-            <input type="text" required value={courierRegions} onChange={(e) => setCourierRegions(e.target.value)} />
-
-            <label>Часы работы:</label>
-            <input type="text" required value={courierHours} onChange={(e) => setCourierHours(e.target.value)} />
-
-            <button type="submit" className="btn-primary">Зарегистрировать курьера</button>
-          </form>
+            <select onChange={e => setSelectedOrderId(e.target.value)}>
+              <option value="">Выберите свободный заказ</option>
+              {allOrders.filter(o => !o.courier_id).map(o => <option key={o.order_id} value={o.order_id}>Заказ #{o.order_id}</option>)}
+            </select>
+            <button onClick={handleAssignSingle} className="btn-success">Назначить</button>
+          </div>
         </div>
-
-        <div className="card">
-          <h2>Создание заказа</h2>
-          <form onSubmit={handleOrderSubmit} className="vertical-form">
-            <label>ID Заказа:</label>
-            <input type="number" required value={orderId} onChange={(e) => setOrderId(e.target.value)} />
-
-            <label>Вес заказа (кг):</label>
-            <input type="number" step="0.1" required value={orderWeight} onChange={(e) => setOrderWeight(e.target.value)} />
-
-            <label>Регион доставки:</label>
-            <input type="number" required value={orderRegion} onChange={(e) => setOrderRegion(e.target.value)} />
-
-            <label>Часы доставки:</label>
-            <input type="text" required value={orderHours} onChange={(e) => setOrderHours(e.target.value)} />
-
-            <button type="submit" className="btn-primary">Создать заказ</button>
-          </form>
+      ) : (
+        <div className="courier-panel">
+          <h2>Ваши заказы</h2>
+          <table>
+            <thead><tr><th>ID</th><th>Регион</th></tr></thead>
+            <tbody>
+              {allOrders.filter(o => o.courier_id === user.user_id).map(o => (
+                <tr key={o.order_id}><td>{o.order_id}</td><td>{o.region}</td></tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </div>
-
-      <div className="card">
-        <h2>Назначение заказа курьеру</h2>
-        <form onSubmit={handleAssignOrders} className="inline-form">
-          <input
-            type="number"
-            required
-            placeholder="ID Курьера"
-            value={assignCourierId}
-            onChange={(e) => setAssignCourierId(e.target.value)}
-          />
-          <input
-            type="number"
-            required
-            placeholder="ID Заказа"
-            value={assignOrderId}
-            onChange={(e) => setAssignOrderId(e.target.value)}
-            style={{ marginLeft: '10px' }}
-          />
-          <button type="submit" className="btn-success" style={{ marginLeft: '10px' }}>Выполнить распределение</button>
-        </form>
-      </div>
+      )}
     </div>
   );
 }
