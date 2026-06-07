@@ -39,9 +39,27 @@ class OrderItem(BaseModel):
                 raise ValueError("Format must be HH:MM-HH:MM")
         return hours
 
-# Схема для POST-запроса /orders
 class OrdersPostRequest(BaseModel):
     orders: List[OrderItem]
 
 class CouriersPostRequest(BaseModel):
     couriers: List[CourierItem]
+
+class CourierResponse(BaseModel):
+    courier_id: int
+    courier_type: CourierType
+    regions: List[int]
+    working_hours: List[str]
+
+    class Config:
+        from_attributes = True
+
+class OrderResponse(BaseModel):
+    order_id: int
+    weight: float
+    regions: int
+    delivery_hours: List[str]
+    cost: int
+
+    class Config:
+        from_attributes = True

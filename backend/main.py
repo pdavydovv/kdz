@@ -1,6 +1,7 @@
-from fastapi import FastAPI, Depends, status
+from fastapi import FastAPI, Depends, status, HTTPException
 from sqlalchemy.orm import Session
-from schemas import CouriersPostRequest, OrdersPostRequest
+from typing import List
+from schemas import CouriersPostRequest, OrdersPostRequest, CourierResponse, OrderResponse
 import models
 from database import engine, get_db
 
@@ -42,3 +43,17 @@ def import_orders(payload: OrdersPostRequest, db: Session = Depends(get_db)):
         imported_orders.append({"id": order_data.order_id})
     db.commit()
     return {"orders": imported_orders}
+
+@app.get("/couriers/{courier_id}", response_model=CourierResponse)
+def get_courier_by_id(courier_id: int, db: Session = Depends(get_db)):
+    courier = db.query(models.Courier).filter(models.Courier.co_id == courier_id).first() if hasattr(models.Courier, 'co_id') else db.query(models.Courier).filter(models.Courier.courier_id == courier_id).first()
+    if not courier:
+        raise HTTPException(status_code=404, detail="Courier not found")
+    return courier
+
+@app.get("/orders/{order_id}", response_model=OrderResponse)
+def get_order_by_id(order_id: int, db: Session = Depends(get_db)):
+    order = db.query(models.Order).filter(models.Order.order_id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
