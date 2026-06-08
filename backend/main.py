@@ -1,172 +1,80 @@
-from fastapi import FastAPI, Depends, status, HTTPException
+from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
-
-from schemas import (
-    CouriersPostRequest, OrdersPostRequest, CouriersIdsResponse, OrdersIdsResponse,
-    CourierGetResponse, CourierUpdateRequest, OrdersAssignPostRequest, OrdersAssignResponse,
-    OrdersCompletePostRequest, OrdersCompletePostResponse
-)
+from pydantic import BaseModel
 import models
 from database import engine, get_db
-from utils import is_overlapping, get_max_weight
 
 models.Base.metadata.create_all(bind=engine)
-
 app = FastAPI(title="Candy Delivery App")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
 )
 
-@app.get("/")
-def read_root():
-    return {"status": "Strict T-Z Compliant Running"}
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
 
-@app.post("/couriers", status_code=status.HTTP_201_CREATED, response_model=CouriersIdsResponse)
-def import_couriers(payload: CouriersPostRequest, db: Session = Depends(get_db)):
-    imported_ids = []
-    for courier_data in payload.data:
-        db_courier = models.Courier(
-            courier_id=courier_data.courier_id,
-            courier_type=courier_data.courier_type.value,
-            regions=courier_data.regions,
-            working_hours=courier_data.working_hours
-        )
-        db.add(db_courier)
-        imported_ids.append({"id": courier_data.courier_id})
+@app.post("/auth/login")
+def login(payload: LoginRequest, role: str, db: Session = Depends(get_db)):
+    if role == "admin":
+        user = db.query(models.Admin).filter(models.Admin.username == payload.username,
+                                             models.Admin.password == payload.password).first()
+    else:
+        user = db.query(models.Courier).filter(models.Courier.username == payload.username,
+                                               models.Courier.password == payload.password).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Неверный логин или пароль")
+    return {"status": "success", "username": user.username, "user_id": user.id, "role": role}
+
+@app.post("/couriers")
+def register_courier(payload: dict, db: Session = Depends(get_db)):
+    data = payload.get('data', payload)
+    new_courier = models.Courier(
+        username=data['username'],
+        password=data['password'],
+        courier_type=data['courier_type'],
+        regions=data['regions'],
+        working_hours=data['working_hours']
+    )
+    db.add(new_courier)
     db.commit()
-    return {"couriers": imported_ids}
+    return {"id": new_courier.id}
 
 
-@app.get("/couriers/{courier_id}", response_model=CourierGetResponse)
-def get_courier_by_id(courier_id: int, db: Session = Depends(get_db)):
-    courier = db.query(models.Courier).filter(models.Courier.courier_id == courier_id).first()
-    if not courier:
-        raise HTTPException(status_code=404, detail="Courier not found")
+@app.get("/users/all")
+def get_all_couriers(db: Session = Depends(get_db)):
+    return db.query(models.Courier).all()
 
-    completed_orders = db.query(models.Order).filter(
-        models.Order.courier_id == courier_id,
-        models.Order.complete_time.isnot(None)
-    ).all()
-
-    coefficients = {"foot": 2, "bike": 3, "car": 4}
-    coef = coefficients.get(courier.courier_type, 2)
-    earnings = sum(150 * coef for _ in completed_orders)
-
-    rating = None
-    if completed_orders:
-        rating = round(len(completed_orders) / 1.0, 2)
-
-    return {
-        "courier_id": courier.courier_id,
-        "courier_type": courier.courier_type,
-        "regions": courier.regions,
-        "working_hours": courier.working_hours,
-        "rating": rating,
-        "earnings": earnings
-    }
+@app.get("/orders/all")
+def get_all_orders(db: Session = Depends(get_db)):
+    return db.query(models.Order).all()
 
 
-@app.patch("/couriers/{courier_id}", response_model=CourierGetResponse)
-def update_courier(courier_id: int, payload: CourierUpdateRequest, db: Session = Depends(get_db)):
-    courier = db.query(models.Courier).filter(models.Courier.courier_id == courier_id).first()
-    if not courier:
-        raise HTTPException(status_code=404, detail="Courier not found")
-
-    if payload.courier_type is not None:
-        courier.courier_type = payload.courier_type.value
-    if payload.regions is not None:
-        courier.regions = payload.regions
-    if payload.working_hours is not None:
-        courier.working_hours = payload.working_hours
-
+@app.post("/orders")
+def import_orders(payload: dict, db: Session = Depends(get_db)):
+    for o in payload['data']:
+        db.add(models.Order(**o))
     db.commit()
-    db.refresh(courier)
-    completed_orders = db.query(models.Order).filter(
-        models.Order.courier_id == courier_id,
-        models.Order.complete_time.isnot(None)
-    ).all()
-    coefficients = {"foot": 2, "bike": 3, "car": 4}
-    coef = coefficients.get(courier.courier_type, 2)
-    earnings = sum(150 * coef for _ in completed_orders)
-    rating = round(len(completed_orders) / 1.0, 2) if completed_orders else None
-
-    return {
-        "courier_id": courier.courier_id,
-        "courier_type": courier.courier_type,
-        "regions": courier.regions,
-        "working_hours": courier.working_hours,
-        "rating": rating,
-        "earnings": earnings
-    }
+    return {"status": "success"}
 
 
-@app.post("/orders", status_code=status.HTTP_201_CREATED, response_model=OrdersIdsResponse)
-def import_orders(payload: OrdersPostRequest, db: Session = Depends(get_db)):
-    imported_ids = []
-    for order_data in payload.data:
-        db_order = models.Order(
-            order_id=order_data.order_id,
-            weight=order_data.weight,
-            region=order_data.region,
-            delivery_hours=order_data.delivery_hours
-        )
-        db.add(db_order)
-        imported_ids.append({"id": order_data.order_id})
-    db.commit()
-    return {"orders": imported_ids}
+@app.post("/orders/assign/single")
+def assign_single_order(payload: dict, db: Session = Depends(get_db)):
+    courier = db.query(models.Courier).filter(models.Courier.id == payload['courier_id']).first()
+    order = db.query(models.Order).filter(models.Order.order_id == payload['order_id']).first()
 
-
-@app.post("/orders/assign", response_model=OrdersAssignResponse)
-def assign_orders_to_courier(payload: OrdersAssignPostRequest, db: Session = Depends(get_db)):
-    courier = db.query(models.Courier).filter(models.Courier.courier_id == payload.courier_id).first()
-    if not courier:
-        raise HTTPException(status_code=400, detail="Courier not found")
-
-    available_orders = db.query(models.Order).filter(
-        models.Order.courier_id.is_(None),
-        models.Order.region.in_(courier.regions)
-    ).all()
-
-    max_weight = get_max_weight(courier.courier_type.lower())
-    current_weight = 0.0
-    assigned_orders = []
-
-    current_time_str = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-
-    for order in available_orders:
-        if is_overlapping(courier.working_hours, order.delivery_hours):
-            if current_weight + order.weight <= max_weight:
-                order.courier_id = courier.courier_id
-                order.assign_time = current_time_str
-                assigned_orders.append({"id": order.order_id})
-                current_weight += order.weight
-
-    db.commit()
-    return {
-        "orders": assigned_orders,
-        "assign_time": current_time_str
-    }
-
-
-@app.post("/orders/complete", response_model=OrdersCompletePostResponse)
-def complete_order(payload: OrdersCompletePostRequest, db: Session = Depends(get_db)):
-    order = db.query(models.Order).filter(
-        models.Order.order_id == payload.order_id,
-        models.Order.courier_id == payload.courier_id
-    ).first()
-
-    if not order:
-        raise HTTPException(status_code=400, detail="Order or assignment not found")
-
-    order.complete_time = payload.complete_time
-    db.commit()
-
-    return {"order_id": order.order_id}
+    if not courier or not order:
+        raise HTTPException(status_code=404, detail="Курьер или заказ не найден")
+    if order.courier_id is not None:
+        raise HTTPException(status_code=400, detail="Заказ уже назначен")
+    if order.region in courier.regions:
+        order.courier_id = courier.id
+        db.commit()
+        return {"status": "success", "order_id": order.order_id, "courier_id": courier.id}
+    else:
+        raise HTTPException(status_code=400, detail="Курьер не работает в этом регионе")

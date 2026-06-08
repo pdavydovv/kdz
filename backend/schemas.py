@@ -9,7 +9,7 @@ class CourierType(str, Enum):
     CAR = "car"
 
 class CourierItem(BaseModel):
-    courier_id: int = Field(..., gt=0) # Поправили пробел
+    user_id: int = Field(..., gt=0)
     courier_type: CourierType
     regions: List[int]
     working_hours: List[str]
@@ -38,13 +38,11 @@ class OrderItem(BaseModel):
                 raise ValueError("Format must be HH:MM-HH:MM")
         return hours
 
-
 class CouriersPostRequest(BaseModel):
     data: List[CourierItem]
 
 class OrdersPostRequest(BaseModel):
     data: List[OrderItem]
-
 
 class CourierIdItem(BaseModel):
     id: int
@@ -58,9 +56,8 @@ class OrderIdItem(BaseModel):
 class OrdersIdsResponse(BaseModel):
     orders: List[OrderIdItem]
 
-
 class CourierGetResponse(BaseModel):
-    courier_id: int
+    user_id: int
     courier_type: CourierType
     regions: List[int]
     working_hours: List[str]
@@ -69,25 +66,24 @@ class CourierGetResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-
 class CourierUpdateRequest(BaseModel):
     courier_type: Optional[CourierType] = None
     regions: Optional[List[int]] = None
     working_hours: Optional[List[str]] = None
 
-
 class OrdersAssignPostRequest(BaseModel):
-    courier_id: int
+    user_id: int
 
 class OrdersAssignResponse(BaseModel):
-    orders: List[CourierIdItem]
+    orders: List[OrderIdItem]
     assign_time: str
 
-
 class OrdersCompletePostRequest(BaseModel):
-    courier_id: int
+    user_id: int
     order_id: int
     complete_time: str
 
 class OrdersCompletePostResponse(BaseModel):
     order_id: int
+
+
