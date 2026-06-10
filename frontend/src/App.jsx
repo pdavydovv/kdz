@@ -20,7 +20,7 @@ function App() {
 
   // Состояния форм
   const [regData, setRegData] = useState({ username: '', password: '', type: 'foot', regions: '', hours: '' });
-  const [orderData, setOrderData] = useState({ id: '', weight: '', region: '', hours: '' });
+  const [orderData, setOrderData] = useState({ id: '', weight: '', region: '', hours: '', price: '' });
   const [selectedCourierId, setSelectedCourierId] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState('');
 
@@ -40,6 +40,7 @@ function App() {
       ]);
       setAllCouriers(cRes.data);
       setAllOrders(oRes.data);
+      setError('');
     } catch (err) {
       setError('Ошибка загрузки: ' + formatError(err));
     }
@@ -91,11 +92,13 @@ function App() {
           order_id: parseInt(orderData.id),
           weight: parseFloat(orderData.weight),
           region: parseInt(orderData.region),
-          delivery_hours: [orderData.hours]
+          delivery_hours: [orderData.hours],
+          price: parseFloat(orderData.price)
         }]
       });
       setMessage('Заказ создан!');
       setError('');
+      setOrderData({ id: '', weight: '', region: '', hours: '', price: '' });
       fetchData();
     } catch (err) {
       setError('Ошибка: ' + formatError(err));
@@ -149,8 +152,11 @@ function App() {
     }
   };
 
-  // Получение текущего курьера из allCouriers (для рейтинга)
+  // Получение текущего курьера и цены
   const currentCourier = allCouriers.find(c => c.id === user?.id);
+  const completedOrders = allOrders.filter(o =>
+  o.courier_id === user?.id && o.status === 'completed');
+  const totalEarnings = completedOrders.reduce((sum, order) => sum + (order.price || 0), 0);
 
   // Фильтрация заказов курьера по статусу
   const getFilteredOrders = () => {
@@ -196,7 +202,6 @@ function App() {
       {error && <div className="alert danger">{error}</div>}
 
       {role === 'admin' ? (
-        // ------------------ Админ-панель ------------------
         <div className="admin-panel">
           <div className="grid">
             <div className="card">
@@ -219,6 +224,7 @@ function App() {
               <input placeholder="Вес" onChange={e => setOrderData({...orderData, weight: e.target.value})} />
               <input placeholder="Регион" onChange={e => setOrderData({...orderData, region: e.target.value})} />
               <input placeholder="Время (10:00-12:00)" onChange={e => setOrderData({...orderData, hours: e.target.value})} />
+              <input type="number" step="0.01" placeholder="Цена заказа (₽)" onChange={e => setOrderData({...orderData, price: e.target.value})} required />
               <button onClick={handleCreateOrder}>Создать заказ</button>
             </div>
           </div>
@@ -263,10 +269,10 @@ function App() {
           </div>
         </div>
       ) : (
-        // ------------------ Курьер-панель ------------------
         <div className="courier-panel">
           <div className="card info-tile">
             <h3>⭐ Ваш рейтинг: {currentCourier?.rating ?? '—'}</h3>
+            <h3>💰 Заработано: {totalEarnings} ₽</h3>
           </div>
 
           <div className="tabs" style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
@@ -297,6 +303,7 @@ function App() {
                     <th>Вес</th>
                     <th>Регион</th>
                     <th>Время доставки</th>
+                    <th>Цена</th>
                     <th>Статус</th>
                     {activeTab === 'active' && <th>Действия</th>}
                   </tr>
@@ -308,6 +315,7 @@ function App() {
                       <td>{order.weight} кг</td>
                       <td>{order.region}</td>
                       <td>{order.delivery_hours?.join(', ')}</td>
+                      <td>{order.price} ₽</td>
                       <td>
                         {order.status === 'assigned' && '🔄 В работе'}
                         {order.status === 'completed' && '✅ Доставлен'}

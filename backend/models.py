@@ -28,3 +28,4 @@ class Order(Base):
     status = Column(String, default="new")
     completed_time = Column(String, nullable=True)
     cancelled_time = Column(String, nullable=True)
+    price = Column(Float, nullable=False)

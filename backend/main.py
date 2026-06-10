@@ -94,7 +94,8 @@ def import_orders(payload: dict, db: Session = Depends(get_db)):
                 weight=o['weight'],
                 region=o['region'],
                 delivery_hours=o['delivery_hours'],
-                status='new'
+                status='new',
+                price = o['price']
             )
             db.add(new_order)
     db.commit()

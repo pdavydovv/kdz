@@ -35,6 +35,7 @@ class OrderItem(BaseModel):
     order_id: int = Field(..., gt=0)
     weight: float = Field(..., gt=0)
     region: int = Field(..., gt=0)
+    price: float = Field(..., gt=0)
     delivery_hours: List[str]
 
     @field_validator('delivery_hours')
@@ -118,3 +119,6 @@ class OrderResponse(BaseModel):
     status: OrderStatus
     completed_time: Optional[str] = None
     cancelled_time: Optional[str] = None
+    price: float
+
+    model_config = ConfigDict(from_attributes=True)
