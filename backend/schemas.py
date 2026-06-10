@@ -8,6 +8,12 @@ class CourierType(str, Enum):
     BIKE = "bike"
     CAR = "car"
 
+class OrderStatus(str, Enum):
+    NEW = "new"
+    ASSIGNED = "assigned"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
 class CourierItem(BaseModel):
     user_id: int = Field(..., gt=0)
     courier_type: CourierType
@@ -38,6 +44,10 @@ class OrderItem(BaseModel):
                 raise ValueError("Format must be HH:MM-HH:MM")
         return hours
 
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
 class CouriersPostRequest(BaseModel):
     data: List[CourierItem]
 
@@ -61,7 +71,7 @@ class CourierGetResponse(BaseModel):
     courier_type: CourierType
     regions: List[int]
     working_hours: List[str]
-    rating: Optional[float] = None
+    rating: float = 0.0
     earnings: Optional[int] = 0
 
     model_config = ConfigDict(from_attributes=True)
@@ -86,4 +96,22 @@ class OrdersCompletePostRequest(BaseModel):
 class OrdersCompletePostResponse(BaseModel):
     order_id: int
 
+class OrderCompleteRequest(BaseModel):
+    courier_id: int
+    order_id: int
+    complete_time: str
 
+class OrderCancelRequest(BaseModel):
+    courier_id: int
+    order_id: int
+
+class OrderResponse(BaseModel):
+    order_id: int
+    weight: float
+    region: int
+    delivery_hours: List[str]
+    courier_id: Optional[int] = None
+    assign_time: Optional[str] = None
+    status: OrderStatus
+    completed_time: Optional[str] = None
+    cancelled_time: Optional[str] = None
