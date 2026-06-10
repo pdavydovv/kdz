@@ -26,3 +26,4 @@ def get_max_weight(courier_type: str) -> float:
         "car": 40.0
     }
     return limits.get(courier_type, 0.0)
+
