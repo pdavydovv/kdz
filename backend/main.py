@@ -60,7 +60,7 @@ def login(payload: LoginRequest, role: str, db: Session = Depends(get_db)):
         ).first()
     if not user:
         raise HTTPException(status_code=401, detail="Неверный логин или пароль")
-    return {"status": "success", "username": user.username, "user_id": user.id, "role": role}
+    return {"status": "success", "username": user.username, "id": user.id, "role": role}
 
 @app.post("/couriers")
 def register_courier(payload: dict, db: Session = Depends(get_db)):

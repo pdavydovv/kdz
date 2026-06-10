@@ -15,7 +15,9 @@ class OrderStatus(str, Enum):
     CANCELLED = "cancelled"
 
 class CourierItem(BaseModel):
-    user_id: int = Field(..., gt=0)
+    id: int = Field(..., gt=0)
+    username: str
+    password: str
     courier_type: CourierType
     regions: List[int]
     working_hours: List[str]
@@ -67,7 +69,8 @@ class OrdersIdsResponse(BaseModel):
     orders: List[OrderIdItem]
 
 class CourierGetResponse(BaseModel):
-    user_id: int
+    id: int
+    username: str
     courier_type: CourierType
     regions: List[int]
     working_hours: List[str]
